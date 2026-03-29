@@ -1,0 +1,49 @@
+name: "SICH Backend Deploy Plan para Antigravity"
+description: "Pipeline de despliegue automatizado para el Nodo Central (AppDaemon) de SICH."
+version: "1.0"
+
+# Contexto de Ejecución:
+# Este plan asume que el agente (Antigravity/Runner) tiene:
+# 1. Acceso SSH al servidor donde corre Home Assistant / AppDaemon.
+# 2. Permisos de escritura en el directorio de configuración de AppDaemon.
+# 3. Acceso a reiniciar el contenedor/servicio de AppDaemon.
+# NOTA: La inicialización de la base de datos (MariaDB) ya fue realizada manualmente.
+
+variables:
+  # Rutas por defecto asumiendo una instalación estándar de Home Assistant Supervised o Docker
+  APPDAEMON_APPS_DIR: "/config/appdaemon/apps"
+  BACKEND_SOURCE_DIR: "./backend/appdaemon/apps/sich"
+  SERVICE_NAME: "appdaemon" # O el nombre del contenedor Docker si aplica
+
+stages:
+  - name: "Validación de Entorno"
+    steps:
+      - id: check_ssh
+        action: ssh.execute
+        command: "echo 'Conexión SSH exitosa al servidor de Home Assistant.'"
+        
+      - id: check_appdaemon_dir
+        action: ssh.execute
+        command: "[ -d {{ APPDAEMON_APPS_DIR }} ] && echo 'Directorio de AppDaemon encontrado.' || exit 1"
+
+  - name: "Despliegue de Código (Nodo Central)"
+    steps:
+      - id: copy_sich_files
+        action: ssh.scp
+        source: "{{ BACKEND_SOURCE_DIR }}/*"
+        destination: "{{ APPDAEMON_APPS_DIR }}/sich/"
+        options:
+          recursive: true
+          overwrite: true
+
+  - name: "Post-Despliegue"
+    steps:
+      - id: restart_appdaemon
+        action: ssh.execute
+        # Comando adaptado según el tipo de instalación (Docker, Systemd, o HA CLI)
+        command: "ha addons restart a0d7b954_appdaemon || systemctl restart appdaemon || docker restart appdaemon"
+        
+      - id: verify_logs
+        action: ssh.execute
+        # Espera unos segundos y verifica que inicializó correctamente
+        command: "sleep 5 && tail -n 50 /config/appdaemon/appdaemon.log | grep -i 'S.I.C.H. Backend Inicializado'"
