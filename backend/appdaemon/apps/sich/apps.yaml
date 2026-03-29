@@ -1,0 +1,8 @@
+sich:
+  module: sich
+  class: SICHManager
+  db_config:
+    host: "localhost"
+    user: "sich_user"
+    password: "sich_password"
+    database: "sich_db"
