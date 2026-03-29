@@ -9,6 +9,9 @@ class SICHManager(hass.Hass):
         self.db_config = self.args.get("db_config")
         
         # Registro de Endpoints HTTP para el Nodo Satélite (Frontend)
+        # GET /api/appdaemon/sich/ping (Health Check)
+        self.register_endpoint(self.api_get_ping, "sich/ping")
+
         # GET /api/appdaemon/sich/reglas
         self.register_endpoint(self.api_get_reglas, "sich/reglas")
         
@@ -31,6 +34,23 @@ class SICHManager(hass.Hass):
     # ==========================================
     # API ENDPOINTS
     # ==========================================
+    def api_get_ping(self, request, kwargs):
+        """Endpoint GET /api/appdaemon/sich/ping (Health Check)"""
+        self.log("GET /sich/ping llamado")
+        conn = None
+        try:
+            conn = self.get_db_connection()
+            if conn and conn.is_connected():
+                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200
+            else:
+                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500
+        except Exception as e:
+            self.error(f"Error en api_get_ping: {e}")
+            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500
+        finally:
+            if conn and conn.is_connected():
+                conn.close()
+
     def api_get_reglas(self, request, kwargs):
         """Endpoint GET /api/appdaemon/sich/reglas"""
         self.log("GET /sich/reglas llamado")
