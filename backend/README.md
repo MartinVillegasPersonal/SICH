@@ -28,16 +28,25 @@ Dado que este Nodo Central requiere AppDaemon (usualmente ejecutándose como un 
 2. **Copiar Archivos**:
    Copia el contenido de la carpeta `appdaemon/apps/sich` (los archivos `sich.py` y `apps.yaml`) directamente a la carpeta de configuración de tu servidor AppDaemon, dentro de `/config/appdaemon/apps/`.
 
-3. **Ajustar Credenciales (apps.yaml)**:
-   Edita el archivo `apps.yaml` en tu servidor de AppDaemon para reflejar la conexión real a MariaDB:
+3. **Ajustar Credenciales (Gestión de Secretos)**:
+   AppDaemon admite el uso de secretos nativos para no exponer contraseñas en texto plano.
+   
+   En tu archivo `secrets.yaml` (ubicado usualmente en `/config/appdaemon/secrets.yaml` o compartiendo el de Home Assistant):
+   ```yaml
+   sich_db_host: "IP_DE_MARIADB"
+   sich_db_user: "TU_USUARIO"
+   sich_db_password: "TU_SUPER_SECRET_PASSWORD"
+   ```
+
+   Y el archivo `apps.yaml` ya viene preparado para consumirlos:
    ```yaml
    sich:
      module: sich
      class: SICHManager
      db_config:
-       host: "DIRECCION_IP_DE_MARIADB" # Ej: "core-mariadb" si es Add-on
-       user: "sich_user"
-       password: "SUPER_SECRET_PASSWORD"
+       host: "!secret sich_db_host"
+       user: "!secret sich_db_user"
+       password: "!secret sich_db_password"
        database: "sich_db"
    ```
 

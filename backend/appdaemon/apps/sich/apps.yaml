@@ -2,7 +2,7 @@ sich:
   module: sich
   class: SICHManager
   db_config:
-    host: "localhost"
-    user: "sich_user"
-    password: "sich_password"
+    host: "!secret sich_db_host"
+    user: "!secret sich_db_user"
+    password: "!secret sich_db_password"
     database: "sich_db"
