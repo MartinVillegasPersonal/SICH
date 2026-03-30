@@ -26,16 +26,26 @@ export default function Home() {
     try {
       setLoading(true);
       const response = await fetch(ENDPOINTS.REGLAS);
-      const result = await response.json();
+      let result = await response.json();
       
-      if (result.status === "ok") {
+      // Manejar el caso donde el backend devuelve un JSON doblemente codificado (como string)
+      if (typeof result === "string") {
+        try {
+          result = JSON.parse(result);
+        } catch (e) {
+          console.error("No se pudo parsear el resultado como JSON:", e);
+        }
+      }
+      
+      if (result && result.status === "ok") {
         const enhancedRules = result.data.map((r: Rule) => ({
           ...r,
           status: 'pending' 
         }));
         setRules(enhancedRules);
       } else {
-        setError("Error en respuesta de API");
+        const errorMsg = result && result.message ? result.message : "Error en respuesta de API";
+        setError(errorMsg);
       }
     } catch (err) {
       setError("No se pudo conectar con el servidor HP");
