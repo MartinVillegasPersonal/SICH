@@ -82,3 +82,20 @@ INSERT INTO tabla_preguntas (regla_id, enunciado, opciones_json, correcta_index)
 ('MOD-001', '¿Qué podemos tomar en el dormitorio?', '["Gaseosa.", "Solo agua potable."]', 1),
 ('MOD-001', 'Si Alfonsina ve una miga... ¿qué hace?', '["La limpia rápido para cuidar su cuarto.", "La deja ahí de mascota."]', 0),
 ('MOD-001', '¿Cómo se siente dormir en una cama limpia?', '["¡Súper bien para tener lindos sueños!", "Igual que siempre."]', 0);
+
+-- Insertar Regla MOD-002 (El Menú del Chef)
+INSERT INTO tabla_reglas (id, titulo, cuerpo, ha_entity, tipo_acceso) VALUES (
+    'MOD-002', 
+    'El Menú del Chef: Sugerencias sí, Exigencias no', 
+    '¡Hola, Martina y Alfonsina! En esta casa nos encanta cocinar cosas ricas para ustedes, pero a veces decidir qué comer es un trabajo difícil. Para que la cocina siga siendo un lugar de alegría, vamos a seguir estos consejos:\n\n1. **Sugerir es genial**: Si tienen ganas de comer algo especial, ¡pueden decírnoslo! Las sugerencias siempre son bienvenidas.\n2. **No somos un restaurante**: El menú del día lo deciden los cocineros (mamá o papá). No se puede \'exigir\' un plato ni elegir por los demás.\n3. **Ojo con las indirectas**: Decir cosas como \'siempre hacés lo que mi hermana quiere, hoy tenés que cocinar esto\' también es una forma de exigir. No vale usar comparaciones para conseguir un plato de comida.\n\n¡Gracias por valorar el esfuerzo de quienes cocinan con tanto cariño!', 
+    'input_boolean.permiso_menu_chef',
+    'Token_Unico'
+);
+
+-- Insertar Preguntas para MOD-002 (0-based: A=0, B=1, C=2)
+INSERT INTO tabla_preguntas (regla_id, enunciado, opciones_json, correcta_index) VALUES 
+('MOD-002', '¿Cuál es la forma correcta de pedir una comida que te gusta mucho?', '["Ordenar que se cocine eso ahora mismo.", "Hacer una sugerencia amable y esperar a ver si se puede.", "No decir nada y enojarse si no lo cocinan."]', 1),
+('MOD-002', '¿Quién tiene la última palabra sobre el menú del día?', '["Quien llegue primero a la cocina.", "La colaboradora que tenga más hambre.", "Los cocineros de la casa (papá o mamá)."]', 2),
+('MOD-002', '¿Qué es una "exigencia indirecta" según la regla?', '["Decir \\"por favor\\".", "Usar reproches como \\"siempre hacés lo que ella quiere\\" para presionar al cocinero.", "Ayudar a poner la mesa."]', 1),
+('MOD-002', 'Si hoy toca una comida que no es tu favorita, ¿cuál es la mejor actitud?', '["Quejarse hasta que cambien el menú.", "Agradecer el esfuerzo de quien cocinó y comer con alegría.", "Comparar con lo que comieron ayer."]', 1),
+('MOD-002', '¿Se pueden hacer sugerencias para el menú?', '["¡Claro que sí! Las ideas siempre ayudan, siempre que sean con respeto.", "No, está prohibido hablar de comida.", "Solo si es para pedir pizza."]', 0);
