@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Lock, Unlock } from 'lucide-react';
 import { Outlet } from 'react-router-dom';
 
-const MOCK_PIN = "1234"; // Fake PIN for prototype
+const ADMIN_PIN = "2000";
 
 export default function AdminGate() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -11,7 +11,7 @@ export default function AdminGate() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pin === MOCK_PIN) {
+    if (pin === ADMIN_PIN) {
       setIsAuthenticated(true);
       setError(false);
     } else {

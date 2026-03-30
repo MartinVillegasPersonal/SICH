@@ -24,8 +24,14 @@ export default function Dashboard() {
   useEffect(() => {
     fetch(ENDPOINTS.DASHBOARD)
       .then(res => res.json())
-      .then(data => {
-        setStats(data);
+      .then(raw => {
+        // Manejar double-encoding del backend
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        setStats({
+          reglas: data.reglas_activas ?? 0,
+          aprobados: data.certificados_aprobados ?? 0,
+          recientes: data.recientes ?? []
+        });
         setLoading(false);
       })
       .catch((err) => {
