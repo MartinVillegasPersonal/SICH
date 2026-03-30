@@ -50,12 +50,12 @@ class SICHManager(hass.Hass):
         try:
             conn = self.get_db_connection()
             if conn and conn.is_connected():
-                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200, self.cors_headers
+                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200
             else:
-                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500, self.cors_headers
+                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500
         except Exception as e:
             self.error(f"Error en api_get_ping: {e}")
-            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -92,11 +92,11 @@ class SICHManager(hass.Hass):
                 regla['preguntas'] = preguntas
                 
             cursor.close()
-            return json.dumps({"status": "ok", "data": reglas}), 200, self.cors_headers
+            return json.dumps({"status": "ok", "data": reglas}), 200
             
         except Exception as e:
             self.error(f"Error en api_get_reglas: {e}")
-            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e)}), 500
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -161,11 +161,11 @@ class SICHManager(hass.Hass):
                 }
                 
             cursor.close()
-            return json.dumps(resultado), 200, self.cors_headers
+            return json.dumps(resultado), 200
 
         except Exception as e:
             self.error(f"Error en api_post_evaluar: {e}")
-            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e)}), 500
         finally:
             if conn and conn.is_connected():
                 conn.close()
