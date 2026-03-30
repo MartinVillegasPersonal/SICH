@@ -1,24 +1,58 @@
-import { useState } from 'react';
-import { ArrowLeft, RefreshCw, Copy, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, RefreshCw, Copy, CheckCircle2, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { ENDPOINTS } from '../../api/config';
 import '../../index.css';
+
+interface Rule {
+  id: number;
+  titulo: string;
+}
 
 export default function TokenManager() {
   const navigate = useNavigate();
   const [colaboradora, setColaboradora] = useState('');
   const [ruleId, setRuleId] = useState('');
+  const [rules, setRules] = useState<Rule[]>([]);
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleGenerate = () => {
+  useEffect(() => {
+    fetch(ENDPOINTS.REGLAS)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === "ok") setRules(data.data);
+      });
+  }, []);
+
+  const handleGenerate = async () => {
     if (!colaboradora || !ruleId) return;
     
-    // Simulating token generation
+    setLoading(true);
     const fakeToken = `${colaboradora.substring(0,3).toUpperCase()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const url = `http://192.168.0.216/e/${fakeToken}`;
     
-    setGeneratedLink(url);
-    setCopied(false);
+    try {
+      const response = await fetch(ENDPOINTS.TOKENS_SAVE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token_id: fakeToken,
+          colaboradora_nombre: colaboradora
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === "ok") {
+        const url = `http://192.168.0.216/e/${fakeToken}`;
+        setGeneratedLink(url);
+        setCopied(false);
+      }
+    } catch (err) {
+      console.error("Error saving token:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const copyToClipboard = () => {
@@ -57,10 +91,10 @@ export default function TokenManager() {
             onChange={(e) => setRuleId(e.target.value)}
             style={{ width: '100%', padding: '16px', borderRadius: '12px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--glass-border)', color: 'white', fontSize: '1rem', appearance: 'none', fontFamily: 'Outfit' }}
           >
-            <option value="" disabled>Selecciona la ruta...</option>
-            <option value="1">Uso del Quincho y Parrilla</option>
-            <option value="2">Mantenimiento de Notebook Dell</option>
-            <option value="3">Horarios de Salidas</option>
+            <option value="" disabled>Escoge una regla...</option>
+            {rules.map(r => (
+              <option key={r.id} value={r.id}>{r.titulo}</option>
+            ))}
           </select>
         </div>
 
@@ -68,10 +102,10 @@ export default function TokenManager() {
           className="glass-button primary" 
           style={{ marginTop: '8px' }}
           onClick={handleGenerate}
-          disabled={!colaboradora || !ruleId}
+          disabled={!colaboradora || !ruleId || loading}
         >
-          <RefreshCw size={20} />
-          Generar Link de Autenticación
+          {loading ? <Loader2 size={20} className="animate-spin" /> : <RefreshCw size={20} />}
+          {loading ? 'Guardando en BD...' : 'Generar Link de Autenticación'}
         </button>
       </div>
 

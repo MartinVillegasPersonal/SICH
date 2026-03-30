@@ -20,6 +20,13 @@ class SICHManager(hass.Hass):
         self.register_endpoint(self.api_get_reglas, "sich_reglas")
         self.register_endpoint(self.api_post_evaluar, "sich_evaluar")
         
+        # Endpoints de Administración (Protegidos por PIN en el Frontend)
+        self.register_endpoint(self.api_get_dashboard, "sich_dashboard")
+        self.register_endpoint(self.api_post_reglas_save, "sich_reglas_save")
+        self.register_endpoint(self.api_get_tokens, "sich_tokens")
+        self.register_endpoint(self.api_post_tokens_save, "sich_tokens_save")
+        self.register_endpoint(self.api_delete_tokens, "sich_tokens_delete")
+        
         self.log("Endpoints SICH (underscore names) registrados correctamente")
 
     # ==========================================
@@ -200,15 +207,115 @@ class SICHManager(hass.Hass):
         )
         self.log(f"Certificado insertado en BD para {colaboradora} - Regla: {normativa_id}")
 
-    def activate_resource(self, cursor, normativa_id):
-        """Activa la entidad correspondiente en Home Assistant"""
-        cursor.execute("SELECT ha_entity FROM tabla_reglas WHERE id = %s", (normativa_id,))
-        regla = cursor.fetchone()
-        
-        if regla and regla['ha_entity']:
-            entity = regla['ha_entity']
-            self.turn_on(entity)
-            self.notify(f"SICH: Regla {normativa_id} aprobada. Acceso a {entity} concedido.", title="SICH Cumplimiento")
-            self.log(f"HA Entity {entity} activada por aprobación de {normativa_id}")
-        else:
-            self.log(f"Advertencia: La regla {normativa_id} no tiene ha_entity asignada.")
+    # ==========================================
+    # ADMIN ENDPOINTS
+    # ==========================================
+    
+    def api_get_dashboard(self, request, kwargs):
+        """GET /sich_dashboard: Estadísticas rápidas"""
+        conn = None
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Conteo de Reglas
+            cursor.execute("SELECT COUNT(*) as count FROM tabla_reglas")
+            reglas_count = cursor.fetchone()['count']
+            
+            # Conteo de Certificados (Aprobados)
+            cursor.execute("SELECT COUNT(*) as count FROM tabla_certificados WHERE nota >= 80")
+            certificados_count = cursor.fetchone()['count']
+            
+            # Últimos movimientos
+            cursor.execute("SELECT colaboradora, fecha, nota FROM tabla_certificados ORDER BY fecha DESC LIMIT 5")
+            recientes = cursor.fetchall()
+            for r in recientes: r['fecha'] = r['fecha'].strftime("%Y-%m-%d %H:%M")
+
+            res = {
+                "reglas_activas": reglas_count,
+                "certificados_aprobados": certificados_count,
+                "recientes": recientes
+            }
+            return json.dumps(res), 200, self.cors_headers
+        except Exception as e:
+            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+        finally:
+            if conn: conn.close()
+
+    def api_post_reglas_save(self, request, kwargs):
+        """POST /sich_reglas_save: Crea o actualiza una regla"""
+        conn = None
+        try:
+            data = json.loads(request) if isinstance(request, str) else request
+            titulo = data.get("titulo")
+            cuerpo = data.get("cuerpo")
+            ha_entity = data.get("ha_entity")
+            preguntas = data.get("preguntas", [])
+
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+            
+            # Insertar Regla
+            cursor.execute("INSERT INTO tabla_reglas (titulo, cuerpo, ha_entity) VALUES (%s, %s, %s)", (titulo, cuerpo, ha_entity))
+            regla_id = cursor.lastrowid
+            
+            # Insertar Preguntas
+            for p in preguntas:
+                p_json = json.dumps(p.get("opciones_json", []))
+                cursor.execute("INSERT INTO tabla_preguntas (regla_id, enunciado, opciones_json, correcta_index) VALUES (%s, %s, %s, %s)",
+                               (regla_id, p.get("enunciado"), p_json, p.get("correcta_index")))
+            
+            conn.commit()
+            return json.dumps({"status": "ok", "regla_id": regla_id}), 200, self.cors_headers
+        except Exception as e:
+            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+        finally:
+            if conn: conn.close()
+
+    def api_get_tokens(self, request, kwargs):
+        """GET /sich_tokens: Lista todos los tokens activos"""
+        conn = None
+        try:
+            conn = self.get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT token_id, colaboradora_nombre FROM tabla_tokens ORDER BY fecha_creacion DESC")
+            tokens = cursor.fetchall()
+            return json.dumps(tokens), 200, self.cors_headers
+        except Exception as e:
+            return json.dumps({"status": "error"}), 500, self.cors_headers
+        finally:
+            if conn: conn.close()
+
+    def api_post_tokens_save(self, request, kwargs):
+        """POST /sich_tokens_save: Crea un nuevo token"""
+        conn = None
+        try:
+            data = json.loads(request) if isinstance(request, str) else request
+            token_id = data.get("token_id")
+            nombre = data.get("colaboradora_nombre")
+            
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO tabla_tokens (token_id, colaboradora_nombre) VALUES (%s, %s)", (token_id, nombre))
+            conn.commit()
+            return json.dumps({"status": "ok"}), 200, self.cors_headers
+        except Exception as e:
+            return json.dumps({"status": "error"}), 500, self.cors_headers
+        finally:
+            if conn: conn.close()
+
+    def api_delete_tokens(self, request, kwargs):
+        """DELETE /sich_tokens_delete: Elimina un token"""
+        conn = None
+        try:
+            data = json.loads(request) if isinstance(request, str) else request
+            token_id = data.get("token_id")
+            conn = self.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM tabla_tokens WHERE token_id = %s", (token_id,))
+            conn.commit()
+            return json.dumps({"status": "ok"}), 200, self.cors_headers
+        except Exception as e:
+            return json.dumps({"status": "error"}), 500, self.cors_headers
+        finally:
+            if conn: conn.close()
