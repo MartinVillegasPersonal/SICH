@@ -6,30 +6,39 @@ HOST = "192.168.0.200"
 SHARE = "addon_configs"
 USER = "martin"
 PASS = "maquina"
-REMOTE_PATH = "a0d7b954_appdaemon/apps/sich"
-LOCAL_FILE = "./backend/appdaemon/apps/sich/sich.py"
+REMOTE_DIR = "a0d7b954_appdaemon/apps/sich"
+LOCAL_FILE = "backend/appdaemon/apps/sich/sich.py"
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def deploy():
-    # Asegurar que el directorio remoto exista (smbclient no lo crea solo)
-    # Sin embargo, si ya existe el addon_configs, usualmente basta con el 'cd'
+    print(f"[*] Subiendo backend via SMB a {HOST}/{SHARE}/{REMOTE_DIR}...")
     
-    print(f"[*] Subiendo backend via SMB a {HOST}/{SHARE}...")
-    
-    # Construir comando smbclient
-    # -c 'cd path; put localfile'
-    smb_command = f"smbclient //{HOST}/{SHARE} -U {USER}%{PASS} -c 'cd {REMOTE_PATH}; put {LOCAL_FILE} sich.py'"
+    # smbclient necesita el path local relativo al CWD
+    smb_command = [
+        "smbclient", f"//{HOST}/{SHARE}",
+        "-U", f"{USER}%{PASS}",
+        "-c", f"cd {REMOTE_DIR}; put {LOCAL_FILE} sich.py; ls"
+    ]
     
     try:
-        # Usar subprocess para ejecutar el comando
-        process = subprocess.Popen(smb_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
+        result = subprocess.run(
+            smb_command,
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
         
-        if process.returncode == 0:
+        if result.returncode == 0:
             print("[+] Archivo sich.py transferido con éxito.")
-            print(f"Resultado:\n{stdout.decode()}")
+            print(result.stdout)
         else:
-            print(f"[ERROR] Falló la transferencia SMB.\n{stderr.decode()}")
+            print(f"[ERROR] Falló la transferencia SMB.")
+            print(result.stderr)
             
+    except subprocess.TimeoutExpired:
+        print("[ERROR] Timeout: El servidor SMB no respondió en 30 segundos.")
     except Exception as e:
         print(f"[Fallo Crítico]: {str(e)}")
 

@@ -1,6 +1,7 @@
 import appdaemon.plugins.hass.hassapi as hass
 import mysql.connector
 import json
+from datetime import datetime
 
 class SICHManager(hass.Hass):
 
@@ -11,12 +12,12 @@ class SICHManager(hass.Hass):
         # Headers para permitir CORS
         self.cors_headers = {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Max-Age": "3600"
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Credentials": "true"
         }
 
-        # Registro de Endpoints HTTP con guiones bajos para consistencia
+        # Registro de Endpoints HTTP
         self.register_endpoint(self.api_get_ping, "sich_ping")
         self.register_endpoint(self.api_get_reglas, "sich_reglas")
         self.register_endpoint(self.api_post_evaluar, "sich_evaluar")
@@ -28,13 +29,9 @@ class SICHManager(hass.Hass):
         self.register_endpoint(self.api_post_tokens_save, "sich_tokens_save")
         self.register_endpoint(self.api_delete_tokens, "sich_tokens_delete")
         
-        self.log("Endpoints SICH (underscore names) registrados correctamente")
+        self.log("Endpoints SICH registrados correctamente")
 
-    # ==========================================
-    # DATABASE CONNECTION
-    # ==========================================
     def get_db_connection(self):
-        """Abre y retorna una conexión a MariaDB"""
         try:
             return mysql.connector.connect(**self.db_config)
         except mysql.connector.Error as err:
@@ -42,13 +39,10 @@ class SICHManager(hass.Hass):
             return None
 
     # ==========================================
-    # API ENDPOINTS
+    # API ENDPOINTS PRINCIPALES
     # ==========================================
+
     def api_get_ping(self, request, kwargs):
-        """Endpoint GET /api/appdaemon/sich_ping (Health Check)"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-            
         self.log("GET /sich_ping llamado")
         conn = None
         try:
@@ -65,10 +59,6 @@ class SICHManager(hass.Hass):
                 conn.close()
 
     def api_get_reglas(self, request, kwargs):
-        """Endpoint GET /api/appdaemon/sich_reglas"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         self.log("GET /sich_reglas llamado")
         conn = None
         try:
@@ -77,24 +67,19 @@ class SICHManager(hass.Hass):
                 return json.dumps({"status": "error", "message": "Error conectando a BD"}), 500, self.cors_headers
 
             cursor = conn.cursor(dictionary=True)
-            
-            # Paginación básica simulada
             limit = 10
             offset = 0
-            
             cursor.execute("SELECT id, titulo, cuerpo, ha_entity FROM tabla_reglas LIMIT %s OFFSET %s", (limit, offset))
             reglas = cursor.fetchall()
             
-            # Obtener preguntas para cada regla
             for regla in reglas:
                 cursor.execute("SELECT id, enunciado, opciones_json, correcta_index FROM tabla_preguntas WHERE regla_id = %s", (regla['id'],))
                 preguntas = cursor.fetchall()
                 for p in preguntas:
-                    # Parsear opciones si están como string JSON en la base de datos
                     if isinstance(p['opciones_json'], str):
                         try:
                             p['opciones_json'] = json.loads(p['opciones_json'])
-                        except Exception:
+                        except:
                             p['opciones_json'] = []
                 regla['preguntas'] = preguntas
                 
@@ -109,14 +94,9 @@ class SICHManager(hass.Hass):
                 conn.close()
         
     def api_post_evaluar(self, request, kwargs):
-        """Endpoint POST /api/appdaemon/sich_evaluar"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         self.log("POST /sich_evaluar llamado")
         conn = None
         try:
-            # En AppDaemon, request a veces viene como string si el Content-Type es JSON
             if isinstance(request, str):
                 data = json.loads(request)
             else:
@@ -124,54 +104,34 @@ class SICHManager(hass.Hass):
                 
             token_id = data.get("token_id")
             normativa_id = data.get("regla_id")
-            respuestas = data.get("respuestas", {}) # Formato: {"id_pregunta": index_respuesta_enviado}
+            respuestas = data.get("respuestas", {})
 
             if not token_id or not normativa_id:
-                return json.dumps({"status": "error", "message": "Faltan parámetros (token_id, regla_id)"}), 400, self.cors_headers
+                return json.dumps({"status": "error", "message": "Faltan parámetros"}), 400, self.cors_headers
 
             conn = self.get_db_connection()
-            if not conn:
-                return json.dumps({"status": "error", "message": "Error de BD"}), 500, self.cors_headers
-                
             cursor = conn.cursor(dictionary=True)
             
-            # 1. Validar el Token
             cursor.execute("SELECT colaboradora_nombre FROM tabla_tokens WHERE token_id = %s", (token_id,))
             token_record = cursor.fetchone()
             
             if not token_record:
                 cursor.close()
-                return json.dumps({"status": "error", "message": "Token inválido o expirado"}), 401, self.cors_headers
+                return json.dumps({"status": "error", "message": "Token inválido"}), 401, self.cors_headers
                 
             colaboradora = token_record["colaboradora_nombre"]
-            
-            # 2. Calcular la nota (The 80% Rule)
             score = self.calculate_score(cursor, normativa_id, respuestas)
             
-            # 3. Evaluar e impactar resultados
             if score >= 80:
-                self.log(f"Éxito: {colaboradora} aprobó {normativa_id} con {score}%")
                 self.register_success(cursor, colaboradora, normativa_id, score)
-                conn.commit() # Asegurar la inserción
-                
+                conn.commit()
                 self.activate_resource(cursor, normativa_id)
-                resultado = {
-                    "status": "ok", 
-                    "aprobado": True, 
-                    "score": score, 
-                    "mensaje": "¡Felicitaciones! Certificado emitido y acceso concedido."
-                }
+                res = {"status": "ok", "aprobado": True, "score": score, "mensaje": "¡Certificado emitido!"}
             else:
-                self.log(f"Fallo: {colaboradora} obtuvo {score}% en {normativa_id}. No se registra.")
-                resultado = {
-                    "status": "ok", 
-                    "aprobado": False, 
-                    "score": score, 
-                    "mensaje": f"Obtuviste un {score}%. Necesitas un 80% para aprobar. ¡Inténtalo de nuevo!"
-                }
+                res = {"status": "ok", "aprobado": False, "score": score, "mensaje": f"Obtuviste {score}%. Necesitás 80% para aprobar."}
                 
             cursor.close()
-            return json.dumps(resultado), 200, self.cors_headers
+            return json.dumps(res), 200, self.cors_headers
 
         except Exception as e:
             self.error(f"Error en api_post_evaluar: {e}")
@@ -181,68 +141,54 @@ class SICHManager(hass.Hass):
                 conn.close()
 
     # ==========================================
-    # BUSINESS LOGIC (The 80% Rule)
+    # LÓGICA DE NEGOCIO
     # ==========================================
+
     def calculate_score(self, cursor, normativa_id, respuestas):
-        """Calcula el porcentaje de respuestas correctas"""
         cursor.execute("SELECT id, correcta_index FROM tabla_preguntas WHERE regla_id = %s", (normativa_id,))
         preguntas_db = cursor.fetchall()
-        
         if not preguntas_db:
-            return 0 # No hay preguntas configuradas
-            
+            return 0
         correctas = 0
-        total = len(preguntas_db)
-        
         for p_db in preguntas_db:
-            # Las keys del diccionario enviado en JSON suelen ser strings
             p_id_str = str(p_db['id'])
-            
-            if p_id_str in respuestas:
-                # Si la respuesta del frontend coincide con la almacenada
-                if int(respuestas[p_id_str]) == p_db['correcta_index']:
-                    correctas += 1
-                    
-        porcentaje = (correctas / total) * 100
-        return round(porcentaje)
+            if p_id_str in respuestas and int(respuestas[p_id_str]) == p_db['correcta_index']:
+                correctas += 1
+        return round((correctas / len(preguntas_db)) * 100)
 
     def register_success(self, cursor, colaboradora, normativa_id, score):
-        """Registra el certificado en MariaDB"""
-        from datetime import datetime
-        ahora = datetime.now()
-        
         cursor.execute(
             "INSERT INTO tabla_certificados (colaboradora, regla_id, fecha, nota) VALUES (%s, %s, %s, %s)",
-            (colaboradora, normativa_id, ahora, score)
+            (colaboradora, normativa_id, datetime.now(), score)
         )
-        self.log(f"Certificado insertado en BD para {colaboradora} - Regla: {normativa_id}")
+
+    def activate_resource(self, cursor, normativa_id):
+        cursor.execute("SELECT ha_entity FROM tabla_reglas WHERE id = %s", (normativa_id,))
+        regla = cursor.fetchone()
+        if regla and regla['ha_entity']:
+            self.turn_on(regla['ha_entity'])
 
     # ==========================================
     # ADMIN ENDPOINTS
     # ==========================================
-    
+
     def api_get_dashboard(self, request, kwargs):
         """GET /sich_dashboard: Estadísticas rápidas"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         conn = None
         try:
             conn = self.get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
-            # Conteo de Reglas
             cursor.execute("SELECT COUNT(*) as count FROM tabla_reglas")
             reglas_count = cursor.fetchone()['count']
             
-            # Conteo de Certificados (Aprobados)
             cursor.execute("SELECT COUNT(*) as count FROM tabla_certificados WHERE nota >= 80")
             certificados_count = cursor.fetchone()['count']
             
-            # Últimos movimientos
             cursor.execute("SELECT colaboradora, fecha, nota FROM tabla_certificados ORDER BY fecha DESC LIMIT 5")
             recientes = cursor.fetchall()
-            for r in recientes: r['fecha'] = r['fecha'].strftime("%Y-%m-%d %H:%M")
+            for r in recientes:
+                r['fecha'] = r['fecha'].strftime("%Y-%m-%d %H:%M")
 
             res = {
                 "reglas_activas": reglas_count,
@@ -257,9 +203,6 @@ class SICHManager(hass.Hass):
 
     def api_post_reglas_save(self, request, kwargs):
         """POST /sich_reglas_save: Crea o actualiza una regla"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -271,15 +214,15 @@ class SICHManager(hass.Hass):
             conn = self.get_db_connection()
             cursor = conn.cursor()
             
-            # Insertar Regla
             cursor.execute("INSERT INTO tabla_reglas (titulo, cuerpo, ha_entity) VALUES (%s, %s, %s)", (titulo, cuerpo, ha_entity))
             regla_id = cursor.lastrowid
             
-            # Insertar Preguntas
             for p in preguntas:
                 p_json = json.dumps(p.get("opciones_json", []))
-                cursor.execute("INSERT INTO tabla_preguntas (regla_id, enunciado, opciones_json, correcta_index) VALUES (%s, %s, %s, %s)",
-                               (regla_id, p.get("enunciado"), p_json, p.get("correcta_index")))
+                cursor.execute(
+                    "INSERT INTO tabla_preguntas (regla_id, enunciado, opciones_json, correcta_index) VALUES (%s, %s, %s, %s)",
+                    (regla_id, p.get("enunciado"), p_json, p.get("correcta_index"))
+                )
             
             conn.commit()
             return json.dumps({"status": "ok", "regla_id": regla_id}), 200, self.cors_headers
@@ -290,9 +233,6 @@ class SICHManager(hass.Hass):
 
     def api_get_tokens(self, request, kwargs):
         """GET /sich_tokens: Lista todos los tokens activos"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         conn = None
         try:
             conn = self.get_db_connection()
@@ -307,9 +247,6 @@ class SICHManager(hass.Hass):
 
     def api_post_tokens_save(self, request, kwargs):
         """POST /sich_tokens_save: Crea un nuevo token"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -328,9 +265,6 @@ class SICHManager(hass.Hass):
 
     def api_delete_tokens(self, request, kwargs):
         """DELETE /sich_tokens_delete: Elimina un token"""
-        if request.method == "OPTIONS":
-            return "", 200, self.cors_headers
-
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -344,17 +278,3 @@ class SICHManager(hass.Hass):
             return json.dumps({"status": "error"}), 500, self.cors_headers
         finally:
             if conn: conn.close()
-
-    def activate_resource(self, cursor, normativa_id):
-        """Activa la entidad correspondiente en Home Assistant"""
-        cursor.execute("SELECT ha_entity FROM tabla_reglas WHERE id = %s", (normativa_id,))
-        regla = cursor.fetchone()
-        
-        if regla and regla['ha_entity']:
-            entity = regla['ha_entity']
-            # Intentar encender la entidad en Home Assistant
-            self.turn_on(entity)
-            self.notify(f"SICH: Regla {normativa_id} aprobada. Acceso a {entity} concedido.", title="SICH Cumplimiento")
-            self.log(f"HA Entity {entity} activada por aprobación de {normativa_id}")
-        else:
-            self.log(f"Advertencia: La regla {normativa_id} no tiene ha_entity asignada o no existe.")
