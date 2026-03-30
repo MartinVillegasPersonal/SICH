@@ -1,112 +1,128 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Check, Timer, AlertTriangle, ShieldCheck, XCircle, BookOpen } from 'lucide-react';
+import { Check, Timer, AlertTriangle, ShieldCheck, XCircle, BookOpen, Loader2 } from 'lucide-react';
+import { ENDPOINTS } from '../api/config';
 import '../index.css';
 
 type Phase = 'reading' | 'testing' | 'success' | 'failure';
 
-// Mock data (en el futuro esto vendrá de la API basado en el :token)
-const RULE_DATA = {
-  title: "Uso del Quincho y Parrilla",
-  content: `El quincho es un área de uso compartido. Para garantizar la seguridad y el orden, se deben seguir las siguientes normas:
-  
-1. **Limpieza posterior:** Es obligatorio dejar las parrillas limpias sin restos de carbón ni grasa visible antes de retirarse.
-2. **Seguridad del gas:** El paso fundamental antes de encender cualquier quemador o acercar fuego es asegurar la apertura de la válvula general en el patio.
-3. **Residuos:** Bolsas de basura deben sacarse al contenedor de la calle inmediatamente terminada la cena.
-4. **Horarios:** Las luces principales se apagarán automáticamente a las 02:00 AM mediante Home Assistant.
-
-Presiona el botón inferior cuando hayas comprendido estas reglas para comenzar la evaluación cronometrada.`,
-  questions: [
-    {
-      q: "¿Cuál es el paso OBLIGATORIO antes de encender la parrilla del quincho?",
-      options: [
-        "Abrir la válvula general de gas en el patio trasero.",
-        "Comprobar el nivel de carbón en la despensa interior.",
-        "Asegurarse de que el extractor de humo esté encendido.",
-        "Activar el modo 'Fiesta' en el Home Assistant."
-      ],
-      correct: 0
-    },
-    {
-      q: "¿A qué hora se apagarán automáticamente las luces del quincho?",
-      options: [
-        "A la medianoche (00:00).",
-        "A las 01:00 AM.",
-        "A las 02:00 AM mediante Home Assistant.",
-        "No se apagan, debes hacerlo manualmente."
-      ],
-      correct: 2
-    }
-  ]
-};
+interface Rule {
+  id: number;
+  titulo: string;
+  cuerpo: string;
+  ha_entity: string;
+  preguntas: {
+    id: number;
+    enunciado: string;
+    opciones_json: string[];
+    correcta_index: number;
+  }[];
+}
 
 export default function EvaluationSession() {
   const { token } = useParams<{ token: string }>();
   const [phase, setPhase] = useState<Phase>('reading');
+  const [rule, setRule] = useState<Rule | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Test State
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<number[]>([]);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   
   // Timer State (3 minutes = 180 seconds)
   const [timeLeft, setTimeLeft] = useState(180);
 
   useEffect(() => {
-    // Simulando que validamos el token
-    console.log("Visualizando evaluación con token:", token);
+    fetchRuleData();
+  }, [token]);
 
+  useEffect(() => {
     let timer: number | undefined;
     if (phase === 'testing' && timeLeft > 0) {
       timer = window.setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
     } else if (timeLeft === 0 && phase === 'testing') {
-      finishTest(true); // Forzado por tiempo
+      submitEvaluation(true); 
     }
     return () => clearInterval(timer);
-  }, [phase, timeLeft, token]);
+  }, [phase, timeLeft]);
 
-  const handleNextQuestion = () => {
-    if (selectedOption === null) return;
-    
-    const newAnswers = [...answers, selectedOption];
-    setAnswers(newAnswers);
-    setSelectedOption(null);
-
-    if (currentQuestionIndex < RULE_DATA.questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    } else {
-      finishTest(false, newAnswers);
+  const fetchRuleData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(ENDPOINTS.REGLAS);
+      const result = await response.json();
+      
+      if (result.status === "ok" && result.data.length > 0) {
+        // Para este MVP, tomamos la primera regla disponible
+        // Opcional: podrías filtrar por token si el token contuviera el ID
+        setRule(result.data[0]);
+      } else {
+        setError("No se encontraron normativas activas.");
+      }
+    } catch (err) {
+      setError("Error conectando al Servidor HP");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const finishTest = (timeOut: boolean = false, finalAnswers = answers) => {
+  const handleNextQuestion = () => {
+    if (selectedOption === null || !rule) return;
+    
+    const questionId = rule.preguntas[currentQuestionIndex].id;
+    const newAnswers = { ...answers, [questionId]: selectedOption };
+    setAnswers(newAnswers);
+    setSelectedOption(null);
+
+    if (currentQuestionIndex < rule.preguntas.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+      submitEvaluation(false, newAnswers);
+    }
+  };
+
+  const submitEvaluation = async (timeOut: boolean = false, finalAnswers = answers) => {
     if (timeOut) {
       setPhase('failure');
       return;
     }
 
-    // Calcular score
-    let correctCount = 0;
-    finalAnswers.forEach((ans, idx) => {
-      if (ans === RULE_DATA.questions[idx].correct) correctCount++;
-    });
-    
-    const score = (correctCount / RULE_DATA.questions.length) * 100;
-    
-    if (score >= 80) {
-      setPhase('success');
-      // Aca iría un fetch a la API para activar Home Assistant
-    } else {
-      setPhase('failure');
+    try {
+      setLoading(true);
+      const payload = {
+        token_id: token,
+        regla_id: rule?.id,
+        respuestas: finalAnswers
+      };
+
+      const response = await fetch(ENDPOINTS.EVALUAR, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+      
+      if (result.status === "ok" && result.aprobado) {
+        setPhase('success');
+      } else {
+        setPhase('failure');
+      }
+    } catch (err) {
+      setError("Error enviando resultados al HP Server");
+    } finally {
+      setLoading(false);
     }
   };
 
   const restartFromReading = () => {
     setPhase('reading');
     setCurrentQuestionIndex(0);
-    setAnswers([]);
+    setAnswers({});
     setSelectedOption(null);
     setTimeLeft(180);
   };
@@ -117,6 +133,28 @@ export default function EvaluationSession() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  if (loading && phase !== 'success' && phase !== 'failure') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '16px' }}>
+        <Loader2 className="animate-spin" size={48} color="var(--accent-color)" />
+        <p style={{ color: 'var(--text-secondary)' }}>Comunicando con el HP Server...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+     return (
+      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+        <AlertTriangle size={48} color="var(--error-color)" style={{ marginBottom: '16px' }} />
+        <h2 style={{ marginBottom: '8px' }}>Error Crítico</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>{error}</p>
+        <button className="glass-button" onClick={fetchRuleData}>Reintentar carga</button>
+      </div>
+    );
+  }
+
+  if (!rule) return null;
+
   if (phase === 'reading') {
     return (
       <div className="animate-slide-up" style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -126,7 +164,7 @@ export default function EvaluationSession() {
             <span style={{ fontSize: '0.9rem', letterSpacing: '1px', textTransform: 'uppercase' }}>Lectura de Norma</span>
           </div>
           <h1 style={{ fontSize: '1.8rem', marginBottom: '16px', color: 'var(--accent-color)' }}>
-            {RULE_DATA.title}
+            {rule.titulo}
           </h1>
           <div style={{ 
             background: 'var(--glass-bg)', 
@@ -137,7 +175,7 @@ export default function EvaluationSession() {
             fontSize: '1.05rem',
             whiteSpace: 'pre-wrap'
           }}>
-            {RULE_DATA.content}
+            {rule.cuerpo}
           </div>
         </div>
         <div style={{ position: 'sticky', bottom: '0', background: 'var(--bg-color)', padding: '20px 0', borderTop: '1px solid var(--glass-border)', marginTop: '20px' }}>
@@ -153,12 +191,12 @@ export default function EvaluationSession() {
   }
 
   if (phase === 'testing') {
-    const q = RULE_DATA.questions[currentQuestionIndex];
+    const q = rule.preguntas[currentQuestionIndex];
     return (
       <div className="animate-slide-up" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600 }}>
-             Pregunta {currentQuestionIndex + 1} de {RULE_DATA.questions.length}
+             Pregunta {currentQuestionIndex + 1} de {rule.preguntas.length}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: timeLeft < 30 ? 'var(--error-color)' : 'var(--accent-color)' }}>
             <Timer size={20} />
@@ -167,10 +205,10 @@ export default function EvaluationSession() {
         </div>
 
         <div style={{ padding: '24px 20px', flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <h2 style={{ fontSize: '1.4rem', lineHeight: 1.4 }}>{q.q}</h2>
+          <h2 style={{ fontSize: '1.4rem', lineHeight: 1.4 }}>{q.enunciado}</h2>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-            {q.options.map((opt, i) => {
+            {q.opciones_json.map((opt, i) => {
               const isSelected = selectedOption === i;
               return (
                 <button
@@ -215,7 +253,7 @@ export default function EvaluationSession() {
             }}
             onClick={handleNextQuestion}
           >
-            {currentQuestionIndex === RULE_DATA.questions.length - 1 ? 'Finalizar' : 'Siguiente Pregunta'}
+            {currentQuestionIndex === rule.preguntas.length - 1 ? 'Finalizar' : 'Siguiente Pregunta'}
           </button>
         </div>
       </div>
@@ -234,11 +272,12 @@ export default function EvaluationSession() {
         }}>
           <ShieldCheck size={64} color="var(--success-color)" />
         </div>
-        <h1 style={{ fontSize: '2rem', marginBottom: '16px', color: 'var(--success-color)' }}>¡Token Verificado!</h1>
+        <h1 style={{ fontSize: '2rem', marginBottom: '16px', color: 'var(--success-color)' }}>¡Aprobado!</h1>
         <p style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '32px', maxWidth: '300px' }}>
-          Has comprendido correctamente las normativas. El privilegio solicitados se encuentra habilitado en el Centro de Mando.
+          Has superado la evaluación con éxito. El acceso al recurso solicitado ya está habilitado en Home Assistant.
         </p>
-        <p style={{ fontSize: '0.9rem', opacity: 0.5 }}>Ya puedes cerrar esta pestaña.</p>
+        <p style={{ fontSize: '0.9rem', opacity: 0.5 }}>Token: {token}</p>
+        <p style={{ fontSize: '0.9rem', opacity: 0.5, marginTop: '8px' }}>Ya puedes cerrar esta pestaña.</p>
       </div>
     );
   }
