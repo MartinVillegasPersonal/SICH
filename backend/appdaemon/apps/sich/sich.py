@@ -8,11 +8,12 @@ class SICHManager(hass.Hass):
         self.log("S.I.C.H. Backend Inicializado")
         self.db_config = self.args.get("db_config")
         
-        # Headers para permitir CORS desde el satélite (Raspberry Pi)
+        # Headers para permitir CORS
         self.cors_headers = {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Max-Age": "3600"
         }
 
         # Registro de Endpoints HTTP con guiones bajos para consistencia
@@ -44,25 +45,31 @@ class SICHManager(hass.Hass):
     # API ENDPOINTS
     # ==========================================
     def api_get_ping(self, request, kwargs):
-        """Endpoint GET /api/appdaemon/sich/ping (Health Check)"""
-        self.log("GET /sich/ping llamado")
+        """Endpoint GET /api/appdaemon/sich_ping (Health Check)"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+            
+        self.log("GET /sich_ping llamado")
         conn = None
         try:
             conn = self.get_db_connection()
             if conn and conn.is_connected():
-                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200
+                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200, self.cors_headers
             else:
-                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500
+                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500, self.cors_headers
         except Exception as e:
             self.error(f"Error en api_get_ping: {e}")
-            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500
+            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500, self.cors_headers
         finally:
             if conn and conn.is_connected():
                 conn.close()
 
     def api_get_reglas(self, request, kwargs):
-        """Endpoint GET /api/appdaemon/sich/reglas"""
-        self.log("GET /sich/reglas llamado")
+        """Endpoint GET /api/appdaemon/sich_reglas"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
+        self.log("GET /sich_reglas llamado")
         conn = None
         try:
             conn = self.get_db_connection()
@@ -71,7 +78,7 @@ class SICHManager(hass.Hass):
 
             cursor = conn.cursor(dictionary=True)
             
-            # Paginación básica simulada (TODO: extraer de kwargs si es necesario)
+            # Paginación básica simulada
             limit = 10
             offset = 0
             
@@ -92,18 +99,21 @@ class SICHManager(hass.Hass):
                 regla['preguntas'] = preguntas
                 
             cursor.close()
-            return json.dumps({"status": "ok", "data": reglas}), 200
+            return json.dumps({"status": "ok", "data": reglas}), 200, self.cors_headers
             
         except Exception as e:
             self.error(f"Error en api_get_reglas: {e}")
-            return json.dumps({"status": "error", "message": str(e)}), 500
+            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
         finally:
             if conn and conn.is_connected():
                 conn.close()
         
     def api_post_evaluar(self, request, kwargs):
-        """Endpoint POST /api/appdaemon/sich/evaluar"""
-        self.log("POST /sich/evaluar llamado")
+        """Endpoint POST /api/appdaemon/sich_evaluar"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
+        self.log("POST /sich_evaluar llamado")
         conn = None
         try:
             # En AppDaemon, request a veces viene como string si el Content-Type es JSON
@@ -161,11 +171,11 @@ class SICHManager(hass.Hass):
                 }
                 
             cursor.close()
-            return json.dumps(resultado), 200
+            return json.dumps(resultado), 200, self.cors_headers
 
         except Exception as e:
             self.error(f"Error en api_post_evaluar: {e}")
-            return json.dumps({"status": "error", "message": str(e)}), 500
+            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -213,6 +223,9 @@ class SICHManager(hass.Hass):
     
     def api_get_dashboard(self, request, kwargs):
         """GET /sich_dashboard: Estadísticas rápidas"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
         conn = None
         try:
             conn = self.get_db_connection()
@@ -244,6 +257,9 @@ class SICHManager(hass.Hass):
 
     def api_post_reglas_save(self, request, kwargs):
         """POST /sich_reglas_save: Crea o actualiza una regla"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -274,6 +290,9 @@ class SICHManager(hass.Hass):
 
     def api_get_tokens(self, request, kwargs):
         """GET /sich_tokens: Lista todos los tokens activos"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
         conn = None
         try:
             conn = self.get_db_connection()
@@ -288,6 +307,9 @@ class SICHManager(hass.Hass):
 
     def api_post_tokens_save(self, request, kwargs):
         """POST /sich_tokens_save: Crea un nuevo token"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -306,6 +328,9 @@ class SICHManager(hass.Hass):
 
     def api_delete_tokens(self, request, kwargs):
         """DELETE /sich_tokens_delete: Elimina un token"""
+        if request.method == "OPTIONS":
+            return "", 200, self.cors_headers
+
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
