@@ -8,21 +8,13 @@ class SICHManager(hass.Hass):
     def initialize(self):
         self.log("S.I.C.H. Backend Inicializado")
         self.db_config = self.args.get("db_config")
-        
-        # Headers para permitir CORS
-        self.cors_headers = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-            "Access-Control-Allow-Credentials": "true"
-        }
 
         # Registro de Endpoints HTTP
         self.register_endpoint(self.api_get_ping, "sich_ping")
         self.register_endpoint(self.api_get_reglas, "sich_reglas")
         self.register_endpoint(self.api_post_evaluar, "sich_evaluar")
         
-        # Endpoints de Administración (Protegidos por PIN en el Frontend)
+        # Endpoints de Administración
         self.register_endpoint(self.api_get_dashboard, "sich_dashboard")
         self.register_endpoint(self.api_post_reglas_save, "sich_reglas_save")
         self.register_endpoint(self.api_get_tokens, "sich_tokens")
@@ -48,12 +40,12 @@ class SICHManager(hass.Hass):
         try:
             conn = self.get_db_connection()
             if conn and conn.is_connected():
-                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200, self.cors_headers
+                return json.dumps({"status": "ok", "message": "pong", "db_connected": True}), 200
             else:
-                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500, self.cors_headers
+                return json.dumps({"status": "error", "message": "Database connection failed", "db_connected": False}), 500
         except Exception as e:
             self.error(f"Error en api_get_ping: {e}")
-            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e), "db_connected": False}), 500
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -64,12 +56,10 @@ class SICHManager(hass.Hass):
         try:
             conn = self.get_db_connection()
             if not conn:
-                return json.dumps({"status": "error", "message": "Error conectando a BD"}), 500, self.cors_headers
+                return json.dumps({"status": "error", "message": "Error conectando a BD"}), 500
 
             cursor = conn.cursor(dictionary=True)
-            limit = 10
-            offset = 0
-            cursor.execute("SELECT id, titulo, cuerpo, ha_entity FROM tabla_reglas LIMIT %s OFFSET %s", (limit, offset))
+            cursor.execute("SELECT id, titulo, cuerpo, ha_entity FROM tabla_reglas LIMIT 10 OFFSET 0")
             reglas = cursor.fetchall()
             
             for regla in reglas:
@@ -84,11 +74,11 @@ class SICHManager(hass.Hass):
                 regla['preguntas'] = preguntas
                 
             cursor.close()
-            return json.dumps({"status": "ok", "data": reglas}), 200, self.cors_headers
+            return json.dumps({"status": "ok", "data": reglas}), 200
             
         except Exception as e:
             self.error(f"Error en api_get_reglas: {e}")
-            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e)}), 500
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -107,7 +97,7 @@ class SICHManager(hass.Hass):
             respuestas = data.get("respuestas", {})
 
             if not token_id or not normativa_id:
-                return json.dumps({"status": "error", "message": "Faltan parámetros"}), 400, self.cors_headers
+                return json.dumps({"status": "error", "message": "Faltan parámetros"}), 400
 
             conn = self.get_db_connection()
             cursor = conn.cursor(dictionary=True)
@@ -117,7 +107,7 @@ class SICHManager(hass.Hass):
             
             if not token_record:
                 cursor.close()
-                return json.dumps({"status": "error", "message": "Token inválido"}), 401, self.cors_headers
+                return json.dumps({"status": "error", "message": "Token inválido"}), 401
                 
             colaboradora = token_record["colaboradora_nombre"]
             score = self.calculate_score(cursor, normativa_id, respuestas)
@@ -131,11 +121,11 @@ class SICHManager(hass.Hass):
                 res = {"status": "ok", "aprobado": False, "score": score, "mensaje": f"Obtuviste {score}%. Necesitás 80% para aprobar."}
                 
             cursor.close()
-            return json.dumps(res), 200, self.cors_headers
+            return json.dumps(res), 200
 
         except Exception as e:
             self.error(f"Error en api_post_evaluar: {e}")
-            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e)}), 500
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -173,7 +163,6 @@ class SICHManager(hass.Hass):
     # ==========================================
 
     def api_get_dashboard(self, request, kwargs):
-        """GET /sich_dashboard: Estadísticas rápidas"""
         conn = None
         try:
             conn = self.get_db_connection()
@@ -195,14 +184,13 @@ class SICHManager(hass.Hass):
                 "certificados_aprobados": certificados_count,
                 "recientes": recientes
             }
-            return json.dumps(res), 200, self.cors_headers
+            return json.dumps(res), 200
         except Exception as e:
-            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e)}), 500
         finally:
             if conn: conn.close()
 
     def api_post_reglas_save(self, request, kwargs):
-        """POST /sich_reglas_save: Crea o actualiza una regla"""
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -225,28 +213,26 @@ class SICHManager(hass.Hass):
                 )
             
             conn.commit()
-            return json.dumps({"status": "ok", "regla_id": regla_id}), 200, self.cors_headers
+            return json.dumps({"status": "ok", "regla_id": regla_id}), 200
         except Exception as e:
-            return json.dumps({"status": "error", "message": str(e)}), 500, self.cors_headers
+            return json.dumps({"status": "error", "message": str(e)}), 500
         finally:
             if conn: conn.close()
 
     def api_get_tokens(self, request, kwargs):
-        """GET /sich_tokens: Lista todos los tokens activos"""
         conn = None
         try:
             conn = self.get_db_connection()
             cursor = conn.cursor(dictionary=True)
             cursor.execute("SELECT token_id, colaboradora_nombre FROM tabla_tokens ORDER BY fecha_creacion DESC")
             tokens = cursor.fetchall()
-            return json.dumps(tokens), 200, self.cors_headers
+            return json.dumps(tokens), 200
         except Exception as e:
-            return json.dumps({"status": "error"}), 500, self.cors_headers
+            return json.dumps({"status": "error"}), 500
         finally:
             if conn: conn.close()
 
     def api_post_tokens_save(self, request, kwargs):
-        """POST /sich_tokens_save: Crea un nuevo token"""
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -257,14 +243,13 @@ class SICHManager(hass.Hass):
             cursor = conn.cursor()
             cursor.execute("INSERT INTO tabla_tokens (token_id, colaboradora_nombre) VALUES (%s, %s)", (token_id, nombre))
             conn.commit()
-            return json.dumps({"status": "ok"}), 200, self.cors_headers
+            return json.dumps({"status": "ok"}), 200
         except Exception as e:
-            return json.dumps({"status": "error"}), 500, self.cors_headers
+            return json.dumps({"status": "error"}), 500
         finally:
             if conn: conn.close()
 
     def api_delete_tokens(self, request, kwargs):
-        """DELETE /sich_tokens_delete: Elimina un token"""
         conn = None
         try:
             data = json.loads(request) if isinstance(request, str) else request
@@ -273,8 +258,8 @@ class SICHManager(hass.Hass):
             cursor = conn.cursor()
             cursor.execute("DELETE FROM tabla_tokens WHERE token_id = %s", (token_id,))
             conn.commit()
-            return json.dumps({"status": "ok"}), 200, self.cors_headers
+            return json.dumps({"status": "ok"}), 200
         except Exception as e:
-            return json.dumps({"status": "error"}), 500, self.cors_headers
+            return json.dumps({"status": "error"}), 500
         finally:
             if conn: conn.close()
