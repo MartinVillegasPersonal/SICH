@@ -319,3 +319,17 @@ class SICHManager(hass.Hass):
             return json.dumps({"status": "error"}), 500, self.cors_headers
         finally:
             if conn: conn.close()
+
+    def activate_resource(self, cursor, normativa_id):
+        """Activa la entidad correspondiente en Home Assistant"""
+        cursor.execute("SELECT ha_entity FROM tabla_reglas WHERE id = %s", (normativa_id,))
+        regla = cursor.fetchone()
+        
+        if regla and regla['ha_entity']:
+            entity = regla['ha_entity']
+            # Intentar encender la entidad en Home Assistant
+            self.turn_on(entity)
+            self.notify(f"SICH: Regla {normativa_id} aprobada. Acceso a {entity} concedido.", title="SICH Cumplimiento")
+            self.log(f"HA Entity {entity} activada por aprobación de {normativa_id}")
+        else:
+            self.log(f"Advertencia: La regla {normativa_id} no tiene ha_entity asignada o no existe.")
