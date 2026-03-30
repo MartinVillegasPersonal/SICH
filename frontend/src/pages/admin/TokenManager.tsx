@@ -21,16 +21,20 @@ export default function TokenManager() {
   useEffect(() => {
     fetch(ENDPOINTS.REGLAS)
       .then(res => res.json())
-      .then(data => {
+      .then(raw => {
+        const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (data.status === "ok") setRules(data.data);
-      });
+      })
+      .catch(err => console.error("Error cargando reglas:", err));
   }, []);
 
   const handleGenerate = async () => {
     if (!colaboradora || !ruleId) return;
     
     setLoading(true);
-    const fakeToken = `${colaboradora.substring(0,3).toUpperCase()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    // El token incluye la regla para que la página de evaluación sepa cuál rendir
+    const tokenBase = `${colaboradora.substring(0,3).toUpperCase()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const fakeToken = `${tokenBase}_${ruleId}`;
     
     try {
       const response = await fetch(ENDPOINTS.TOKENS_SAVE, {
@@ -42,7 +46,8 @@ export default function TokenManager() {
         })
       });
 
-      const result = await response.json();
+      const raw = await response.json();
+      const result = typeof raw === 'string' ? JSON.parse(raw) : raw;
       if (result.status === "ok") {
         const url = `http://192.168.0.216/e/${fakeToken}`;
         setGeneratedLink(url);

@@ -157,6 +157,10 @@ class SICHManager(hass.Hass):
         regla = cursor.fetchone()
         if regla and regla['ha_entity']:
             self.turn_on(regla['ha_entity'])
+            self.log(f"HA Entity {regla['ha_entity']} activada por aprobación de {normativa_id}")
+        # Siempre levantar el castigo al aprobar cualquier normativa
+        self.turn_off("input_boolean.castigadas")
+        self.log("input_boolean.castigadas desactivado por aprobación de normativa")
 
     # ==========================================
     # ADMIN ENDPOINTS
