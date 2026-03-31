@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Lock, Unlock } from 'lucide-react';
-import { Outlet } from 'react-router-dom';
+import { Lock, Unlock, X } from 'lucide-react';
+import { Outlet, useNavigate } from 'react-router-dom';
 
 const ADMIN_PIN = "2000";
 
@@ -8,6 +8,7 @@ export default function AdminGate() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +26,28 @@ export default function AdminGate() {
   }
 
   return (
-    <div className="animate-slide-up" style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="animate-slide-up" style={{ padding: '40px 20px', display: 'flex', flexDirection: 'column', height: '100%', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+      <button 
+        onClick={() => navigate('/')}
+        style={{
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          color: 'white',
+          padding: '8px',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}
+      >
+        <X size={20} />
+        <span style={{ fontSize: '0.9rem' }}>Cancelar</span>
+      </button>
+
       <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', padding: '32px 24px', borderRadius: '20px', width: '100%', maxWidth: '320px', textAlign: 'center', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
         <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '16px', borderRadius: '50%', display: 'inline-block', marginBottom: '20px' }}>
           {error ? <Lock size={32} color="var(--error-color)" /> : <Unlock size={32} color="var(--accent-color)" />}

@@ -15,18 +15,18 @@ interface Rule {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<string | null>(localStorage.getItem('sich_profile'));
-  const [rules, setRules] = useState<Rule[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<string | null>(() => {
+    const saved = localStorage.getItem('sich_profile');
+    if (saved === 'Admin') {
+      localStorage.removeItem('sich_profile');
+      return null;
+    }
+    return saved;
+  });
 
   useEffect(() => {
     if (profile) {
-      if (profile === 'Admin') {
-        navigate('/admin');
-      } else {
-        fetchNenaStatus(profile);
-      }
+      fetchNenaStatus(profile);
     }
   }, [profile]);
 
@@ -54,6 +54,10 @@ export default function Home() {
   };
 
   const handleSelectProfile = (p: string) => {
+    if (p === 'Admin') {
+      navigate('/admin');
+      return;
+    }
     localStorage.setItem('sich_profile', p);
     setProfile(p);
   };
