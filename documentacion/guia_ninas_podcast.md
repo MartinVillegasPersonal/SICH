@@ -14,6 +14,9 @@ Es muy fácil. Tienen que ir a esta dirección en su tablet o computadora:
 👉 **http://192.168.0.216/**
 
 Ahí verán una pantalla que pregunta: **"¿Quién eres?"**. 
+
+💡 **Pro-Tip:** Si alguna vez se pierden, solo tienen que hacer clic en el **escudo azul (icono de S.I.C.H.)** que está arriba a la izquierda. ¡Eso las traerá siempre de vuelta a la pantalla de inicio para elegir su nombre!
+
 - Si eres Martina, haz clic en tu nombre.
 - Si eres Alfonsina, haz clic en el tuyo.
 
