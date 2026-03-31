@@ -20,6 +20,7 @@ class SICHManager(hass.Hass):
         self.register_endpoint(self.api_get_tokens, "sich_tokens")
         self.register_endpoint(self.api_post_tokens_save, "sich_tokens_save")
         self.register_endpoint(self.api_delete_tokens, "sich_tokens_delete")
+        self.register_endpoint(self.api_get_nena_status, "sich_nena_status")
         
         self.log("Endpoints SICH registrados correctamente")
 
@@ -165,6 +166,53 @@ class SICHManager(hass.Hass):
     # ==========================================
     # ADMIN ENDPOINTS
     # ==========================================
+
+    
+    def api_get_nena_status(self, request, kwargs):
+        conn = None
+        try:
+            # En AppDaemon, request suele ser la query string dict para GET, o bien vienen en kwargs
+            self.log(f"Request: {request}, Kwargs: {kwargs}")
+            colaboradora = None
+            if hasattr(request, 'get'):
+                colaboradora = request.get('colaboradora')
+            elif isinstance(kwargs, dict):
+                colaboradora = kwargs.get('colaboradora')
+            
+            if not colaboradora:
+                return {"status": "error", "message": "Falta colaboradora", "req": str(request), "kwa": str(kwargs)}, 400
+                
+            conn = self.get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            cursor.execute("SELECT id, titulo, cuerpo, ha_entity FROM tabla_reglas")
+            reglas = cursor.fetchall()
+            
+            cursor.execute("SELECT regla_id, nota, fecha FROM tabla_certificados WHERE colaboradora = %s AND nota >= 80", (colaboradora,))
+            certificados = cursor.fetchall()
+            aprobadas_ids = [c['regla_id'] for c in certificados]
+            
+            res_reglas = []
+            for regla in reglas:
+                if regla['id'] in aprobadas_ids:
+                    regla['estado'] = "aprobado"
+                    regla['token'] = None
+                else:
+                    regla['estado'] = "pendiente"
+                    token_id = f"DASH_{colaboradora}_{regla['id']}"
+                    # Garantizar que el token exista en DB
+                    cursor.execute("SELECT token_id FROM tabla_tokens WHERE token_id = %s", (token_id,))
+                    if not cursor.fetchone():
+                        cursor.execute("INSERT INTO tabla_tokens (token_id, colaboradora_nombre) VALUES (%s, %s)", (token_id, colaboradora))
+                    regla['token'] = token_id
+                res_reglas.append(regla)
+            
+            conn.commit()
+            return {"status": "ok", "colaboradora": colaboradora, "data": res_reglas}, 200
+        except Exception as e:
+            return {"status": "error", "message": str(e)}, 500
+        finally:
+            if conn: conn.close()
 
     def api_get_dashboard(self, request, kwargs):
         conn = None

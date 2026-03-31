@@ -9,4 +9,5 @@ export const ENDPOINTS = {
   TOKENS: `${API_BASE_URL}/sich_tokens`,
   TOKENS_SAVE: `${API_BASE_URL}/sich_tokens_save`,
   TOKENS_DELETE: `${API_BASE_URL}/sich_tokens_delete`,
+  NENA_STATUS: `${API_BASE_URL}/sich_nena_status`,
 };
