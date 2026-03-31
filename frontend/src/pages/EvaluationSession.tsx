@@ -54,12 +54,21 @@ export default function EvaluationSession() {
     try {
       setLoading(true);
       const response = await fetch(ENDPOINTS.REGLAS);
-      const result = await response.json();
+      let result = await response.json();
       
-      if (result.status === "ok" && result.data.length > 0) {
-        // Para este MVP, tomamos la primera regla disponible
-        // Opcional: podrías filtrar por token si el token contuviera el ID
-        setRule(result.data[0]);
+      // Fix for double JSON encoded response
+      if (typeof result === "string") {
+        try {
+          result = JSON.parse(result);
+        } catch (e) {
+          console.error("Error parsing result", e);
+        }
+      }
+      
+      if (result.status === "ok" && result.data && result.data.length > 0) {
+        // En lugar de tomar siempre el primero, intentamos buscar la regla basada en el token
+        const matchedRule = result.data.find((r: Rule) => token && token.includes(String(r.id)));
+        setRule(matchedRule || result.data[0]);
       } else {
         setError("No se encontraron normativas activas.");
       }
@@ -105,7 +114,16 @@ export default function EvaluationSession() {
         body: JSON.stringify(payload)
       });
 
-      const result = await response.json();
+      let result = await response.json();
+      
+      // Fix for double JSON encoded response
+      if (typeof result === "string") {
+        try {
+          result = JSON.parse(result);
+        } catch (e) {
+          console.error("Error parsing result", e);
+        }
+      }
       
       if (result.status === "ok" && result.aprobado) {
         setPhase('success');

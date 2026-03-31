@@ -57,7 +57,10 @@ export default function RuleEditor() {
         })
       });
 
-      const result = await response.json();
+      let result = await response.json();
+      if (typeof result === 'string') {
+        try { result = JSON.parse(result); } catch (e) {}
+      }
       if (result.status === "ok") {
         navigate('/admin');
       }
