@@ -159,9 +159,16 @@ class SICHManager(hass.Hass):
         if regla and regla['ha_entity']:
             self.turn_on(regla['ha_entity'])
             self.log(f"HA Entity {regla['ha_entity']} activada por aprobación de {normativa_id}")
-        # Siempre levantar el castigo al aprobar cualquier normativa
-        self.turn_off("input_boolean.castigadas")
-        self.log("input_boolean.castigadas desactivado por aprobación de normativa")
+            
+        # Verificar si ambas nenas aprobaron esta normativa para levantar el castigo
+        cursor.execute("SELECT DISTINCT colaboradora FROM tabla_certificados WHERE regla_id = %s AND nota >= 80", (normativa_id,))
+        aprobadas = [row['colaboradora'] for row in cursor.fetchall()]
+        
+        if 'Martina' in aprobadas and 'Alfonsina' in aprobadas:
+            self.turn_off("input_boolean.castigadas")
+            self.log(f"input_boolean.castigadas desactivado porque ambas nenas aprobaron la normativa {normativa_id}")
+        else:
+            self.log(f"Normativa {normativa_id} aprobada por {aprobadas}, esperando a la otra nena para levantar el castigo.")
 
     # ==========================================
     # ADMIN ENDPOINTS
