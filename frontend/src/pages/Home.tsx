@@ -23,6 +23,9 @@ export default function Home() {
     }
     return saved;
   });
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
