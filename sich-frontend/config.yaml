@@ -9,6 +9,8 @@ arch:
   - amd64
   - i386
 init: false
+ingress: true
+panel: true
 ports:
   80/tcp: 80
 options: {}
