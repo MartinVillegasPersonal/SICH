@@ -30,9 +30,30 @@ Lógica de negocio, base de datos y ejecución de acciones en Home Assistant.
 
 ## 📂 Estructura del Proyecto
 
-- `/backend`: Lógica de AppDaemon y scripts de inicialización de SQL.
-- `/frontend`: Aplicación React + Vite para el Nodo Satélite.
-- `/documentacion`: Normativas, especificaciones técnicas y documentos estratégicos (Spike).
+Este repositorio es compatible con el ecosistema de Home Assistant:
+
+- **HACS (Backend/AppDaemon)**: Carpeta `apps/sich`.
+- **Add-on Store (Frontend)**: Carpeta `sich-frontend/`.
+- `/backend` y `/frontend`: Carpetas originales de código fuente y desarrollo.
+- `/documentacion`: Normativas, especificaciones técnicas y documentos estratégicos.
+
+---
+
+## 🛠️ Instalación en Home Assistant
+
+### 1. Backend (Lógica) vía HACS
+1. Abre **HACS** en Home Assistant.
+2. Ve a **Automatizaciones** -> Menú (3 puntos) -> **Repositorios personalizados**.
+3. Añade la URL de este repositorio y selecciona la categoría **AppDaemon**.
+4. Busca e instala "SICH".
+5. Configura tu `apps.yaml` siguiendo la documentación en `/backend`.
+
+### 2. Frontend (Panel) vía Tienda de Complementos
+1. Ve a **Ajustes** -> **Complementos** -> **Tienda de complementos**.
+2. Menú (3 puntos) -> **Repositorios**.
+3. Añade la URL de este repositorio.
+4. Busca e instala "SICH Frontend".
+5. Inicia el complemento y configuralo (puertos, etc).
 
 ## 🚀 Despliegue Rápido
 

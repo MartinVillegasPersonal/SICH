@@ -1,0 +1,15 @@
+name: "SICH Frontend"
+description: "Panel de administración y visualización del Sistema Integrado de Cumplimiento Hogareño"
+version: "1.0.0"
+slug: "sich-frontend"
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+init: false
+ports:
+  80/tcp: 80
+options: {}
+schema: {}
