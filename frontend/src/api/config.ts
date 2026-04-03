@@ -1,4 +1,4 @@
-export const API_BASE_URL = "/api/appdaemon";
+export const API_BASE_URL = "api/appdaemon";
 
 export const ENDPOINTS = {
   PING: `${API_BASE_URL}/sich_ping`,

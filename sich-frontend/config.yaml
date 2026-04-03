@@ -1,6 +1,6 @@
 name: "SICH Frontend"
 description: "Panel de administración y visualización del Sistema Integrado de Cumplimiento Hogareño"
-version: "1.0.5"
+version: "1.0.6"
 slug: "sich-frontend"
 arch:
   - armhf
