@@ -3,6 +3,20 @@ import os
 import sys
 import tarfile
 
+def load_env():
+    # Buscar .env en el directorio actual o el padre
+    env_paths = [".env", "../.env"]
+    for path in env_paths:
+        if os.path.exists(path):
+            with open(path) as f:
+                for line in f:
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.strip().split("=", 1)
+                        os.environ[k] = v.strip("'").strip('"')
+            break
+
+load_env()
+
 def create_ssh_client(server, port, user, password):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -56,9 +70,19 @@ def deploy(host, user, password):
         print(f"❌ Error en {host}: {str(e)}")
 
 if __name__ == '__main__':
-    user = 'martin'
-    password = 'MondealRD200k'
-    hosts = ['192.168.0.216', '192.168.0.109']
+    user = os.getenv("FRONTEND_USER")
+    password = os.getenv("FRONTEND_PASS")
+    
+    hosts_env = os.getenv("FRONTEND_HOSTS")
+    if hosts_env:
+        hosts = [h.strip() for h in hosts_env.split(",")]
+    else:
+        hosts = [
+            os.getenv("FRONTEND_HOST_216"),
+            os.getenv("FRONTEND_HOST_109")
+        ]
+        # Filtrar None en caso de que alguna no esté definida
+        hosts = [h for h in hosts if h]
     
     if not os.path.exists('dist'):
         print("Error: No se encontró la carpeta 'dist'. Ejecuta 'npm run build' primero.")

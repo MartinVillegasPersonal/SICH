@@ -29,7 +29,7 @@ def progress(filename, size, sent):
     sys.stdout.flush()
 
 if __name__ == '__main__':
-    host = os.getenv("FRONTEND_HOST_216")
+    host = os.getenv("FRONTEND_HOST_109")
     user = os.getenv("FRONTEND_USER")
     password = os.getenv("FRONTEND_PASS")
     remote_dir = '/home/martin/SICH_frontend'
@@ -52,7 +52,8 @@ if __name__ == '__main__':
 
     # Build and Run
     commands = [
-        f"if ! command -v docker &> /dev/null; then echo '{password}' | sudo -S curl -fsSL https://get.docker.com -o get-docker.sh && echo '{password}' | sudo -S sh get-docker.sh && echo '{password}' | sudo -S usermod -aG docker {user}; fi",
+        f"echo '{password}' | sudo -S systemctl start docker || true",
+        f"echo '{password}' | sudo -S systemctl enable docker || true",
         f"cd {remote_dir} && echo '{password}' | sudo -S docker stop sich_frontend || true",
         f"cd {remote_dir} && echo '{password}' | sudo -S docker rm sich_frontend || true",
         f"cd {remote_dir} && echo '{password}' | sudo -S docker build -t sich-frontend .",

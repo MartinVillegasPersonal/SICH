@@ -2,10 +2,20 @@ import subprocess
 import os
 
 # Configuración SMB
-HOST = "192.168.0.200"
-SHARE = "addon_configs"
-USER = "martin"
-PASS = "maquina"
+def load_env():
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.strip().split("=", 1)
+                    os.environ[k] = v.strip("'").strip('"')
+
+load_env()
+
+HOST = os.getenv("SSH_HOST_HP")
+SHARE = os.getenv("SMB_SHARE")
+USER = os.getenv("SMB_USER")
+PASS = os.getenv("SMB_PASS")
 REMOTE_DIR = "a0d7b954_appdaemon/apps/sich"
 LOCAL_FILE = "backend/appdaemon/apps/sich/sich.py"
 

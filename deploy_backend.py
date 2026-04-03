@@ -3,9 +3,19 @@ import sys
 import paramiko
 from scp import SCPClient
 
-HOST_HP = "192.168.0.200"
-USER_HP = "root"
-PORT_HP = 22
+def load_env():
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.strip().split("=", 1)
+                    os.environ[k] = v.strip("'").strip('"')
+
+load_env()
+
+HOST_HP = os.getenv("SSH_HOST_HP")
+USER_HP = os.getenv("SSH_USER_ROOT")
+PORT_HP = int(os.getenv("SSH_PORT_HP", 22))
 
 REMOTE_APPS_DIR = "/config/appdaemon/apps"
 REMOTE_SICH_DIR = f"{REMOTE_APPS_DIR}/sich"
